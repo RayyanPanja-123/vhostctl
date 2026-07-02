@@ -11,14 +11,34 @@ export function isElevated(): boolean {
   return typeof process.getuid === 'function' && process.getuid() === 0
 }
 
-/** True if `target` is writable, or (when it doesn't exist yet) if its parent directory is. */
+/**
+ * True if `target` is writable, or (when it doesn't exist yet) if its parent directory is.
+ *
+ * Uses real open()/write() probes rather than fs.accessSync: on Windows, access(W_OK) only checks
+ * the read-only attribute and doesn't evaluate ACLs, so it reports protected paths (like the hosts
+ * file or System32\drivers\etc) as writable even without admin rights.
+ */
 export function canWritePath(target: string): boolean {
   try {
     if (fs.existsSync(target)) {
-      fs.accessSync(target, fs.constants.W_OK)
+      if (fs.statSync(target).isDirectory()) {
+        return canWriteDir(target)
+      }
+      const fd = fs.openSync(target, 'r+')
+      fs.closeSync(fd)
       return true
     }
-    fs.accessSync(path.dirname(target), fs.constants.W_OK)
+    return canWriteDir(path.dirname(target))
+  } catch {
+    return false
+  }
+}
+
+function canWriteDir(dir: string): boolean {
+  const probe = path.join(dir, `.vhostctl-write-test-${process.pid}`)
+  try {
+    fs.writeFileSync(probe, '')
+    fs.unlinkSync(probe)
     return true
   } catch {
     return false
