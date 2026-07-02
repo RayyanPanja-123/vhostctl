@@ -87,26 +87,30 @@ async function addVHost(name: string, options: AddCliOptions): Promise<void> {
 
   const stack = await pickStack(options)
 
-  let domain = options.domain
-  if (!domain) {
+  let domain: string
+  if (options.domain) {
+    domain = options.domain
+  } else {
     const response = await prompts({
       type: 'text',
       name: 'domain',
       message: 'Domain',
       initial: `${name}.local`,
     })
-    domain = response.domain || `${name}.local`
+    domain = (response.domain as string | undefined) || `${name}.local`
   }
 
-  let docRoot = options.root
-  if (!docRoot) {
+  let docRoot: string
+  if (options.root) {
+    docRoot = options.root
+  } else {
     const response = await prompts({
       type: 'text',
       name: 'root',
       message: 'Document root',
       initial: path.join(stack.defaultDocroot, name),
     })
-    docRoot = response.root || path.join(stack.defaultDocroot, name)
+    docRoot = (response.root as string | undefined) || path.join(stack.defaultDocroot, name)
   }
 
   const port = Number.parseInt(options.port ?? '80', 10) || 80

@@ -32,13 +32,13 @@ describeOnWindows('detectApacheStacks (win32)', () => {
     const aliasDir = path.join('C:\\wamp64', 'alias')
 
     vi.spyOn(fs, 'existsSync').mockImplementation((target) => target === apacheParent || target === aliasDir)
-    vi.spyOn(fs, 'readdirSync').mockImplementation((dir) => {
+    vi.spyOn(fs, 'readdirSync').mockImplementation(((dir: fs.PathLike) => {
       if (dir !== apacheParent) return []
       return [
         { name: 'apache2.4.51', isDirectory: () => true },
         { name: 'apache2.4.58', isDirectory: () => true },
-      ] as unknown as fs.Dirent[]
-    })
+      ]
+    }) as unknown as typeof fs.readdirSync)
 
     const stacks = detectApacheStacks()
 
