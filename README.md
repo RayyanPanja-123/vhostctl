@@ -1,9 +1,9 @@
 # vhostctl
 
-[![npm version](https://img.shields.io/npm/v/vhostctl.svg)](https://www.npmjs.com/package/vhostctl)
-[![npm downloads](https://img.shields.io/npm/dm/vhostctl.svg)](https://www.npmjs.com/package/vhostctl)
-[![license](https://img.shields.io/npm/l/vhostctl.svg)](https://github.com/RayyanPanja-123/vhostctl/blob/main/LICENSE)
-[![node](https://img.shields.io/node/v/vhostctl.svg)](https://www.npmjs.com/package/vhostctl)
+[![npm version](https://img.shields.io/npm/v/%40superdevs%2Fvhostctl.svg)](https://www.npmjs.com/package/@superdevs/vhostctl)
+[![npm downloads](https://img.shields.io/npm/dm/%40superdevs%2Fvhostctl.svg)](https://www.npmjs.com/package/@superdevs/vhostctl)
+[![license](https://img.shields.io/npm/l/%40superdevs%2Fvhostctl.svg)](https://github.com/RayyanPanja-123/vhostctl/blob/main/LICENSE)
+[![node](https://img.shields.io/node/v/%40superdevs%2Fvhostctl.svg)](https://www.npmjs.com/package/@superdevs/vhostctl)
 
 **vhostctl** is a cross-platform CLI for managing local development virtual hosts and custom domains across **XAMPP**, **WAMP**, and standalone **Apache**/**Nginx** — on **Windows**, **macOS**, and **Linux**. It creates and removes vhost config blocks and hosts-file entries for you, so you never have to hand-edit `httpd-vhosts.conf`, nginx server blocks, or your OS hosts file again.
 
@@ -23,12 +23,18 @@ $ vhostctl
 ## Install
 
 ```bash
+npm install -g @superdevs/vhostctl
+```
+
+Requires Node.js 18+. The package installs a `vhostctl` command globally.
+
+### From source
+
+```bash
 npm install
 npm run build
 npm link      # makes the `vhostctl` command available globally for local testing
 ```
-
-Requires Node.js 18+.
 
 ## Quick start
 
