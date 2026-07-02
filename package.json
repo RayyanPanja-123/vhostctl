@@ -1,6 +1,6 @@
 {
   "name": "@superdevs/vhostctl",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Cross-platform CLI to manage local virtual hosts and domains for XAMPP, WAMP, Apache, and Nginx on Windows, macOS, and Linux — no more hand-editing httpd-vhosts.conf, nginx server blocks, or your hosts file.",
   "keywords": [
     "vhost",
