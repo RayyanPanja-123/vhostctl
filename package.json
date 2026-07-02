@@ -1,0 +1,66 @@
+{
+  "name": "vhostctl",
+  "version": "0.1.0",
+  "description": "Cross-platform CLI to manage local virtual hosts and domains for XAMPP, WAMP, Apache, and Nginx on Windows, macOS, and Linux — no more hand-editing httpd-vhosts.conf, nginx server blocks, or your hosts file.",
+  "keywords": [
+    "vhost",
+    "virtual-host",
+    "xampp",
+    "wamp",
+    "apache",
+    "nginx",
+    "hosts-file",
+    "local-development",
+    "dev-environment",
+    "cli",
+    "devtools",
+    "domain",
+    "localhost",
+    "server-config",
+    "cross-platform"
+  ],
+  "homepage": "https://github.com/RayyanPanja-123/vhostctl#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RayyanPanja-123/vhostctl.git"
+  },
+  "bugs": {
+    "url": "https://github.com/RayyanPanja-123/vhostctl/issues"
+  },
+  "author": "Rayyan Panja",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "vhostctl": "dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsx src/cli.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "cli-table3": "^0.6.5",
+    "commander": "^12.1.0",
+    "figlet": "^1.7.0",
+    "prompts": "^2.4.2"
+  },
+  "devDependencies": {
+    "@types/figlet": "^1.5.8",
+    "@types/node": "^20.14.0",
+    "@types/prompts": "^2.4.9",
+    "tsup": "^8.2.4",
+    "tsx": "^4.16.2",
+    "typescript": "^5.5.4",
+    "vitest": "^2.0.5"
+  }
+}
