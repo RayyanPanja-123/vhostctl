@@ -1,7 +1,7 @@
 import type { Command } from 'commander'
 import { loadRegistry } from '../core/registry.js'
 import { detectAllStacks } from '../stacks/detect.js'
-import { runCommand } from '../utils/exec.js'
+import { restartStandaloneApacheWindows, runCommand } from '../utils/exec.js'
 import { logger } from '../utils/logger.js'
 
 export function registerReloadCommand(program: Command): void {
@@ -27,7 +27,18 @@ Examples:
 
       for (const stack of stacks) {
         logger.info(`Reloading ${stack.label}…`)
-        const result = runCommand(stack.reloadCommand)
+        let result = runCommand(stack.reloadCommand)
+
+        const isWindowsApacheServiceMissing =
+          !result.ok &&
+          process.platform === 'win32' &&
+          stack.reloadCommand[1] === '-k' &&
+          /No installed service/i.test(result.output)
+        if (isWindowsApacheServiceMissing) {
+          logger.dim('Apache is not registered as a Windows service — restarting it as a standalone process instead.')
+          result = restartStandaloneApacheWindows(stack.reloadCommand[0] as string)
+        }
+
         if (result.ok) {
           logger.success(`${stack.label} reloaded.`)
         } else {
