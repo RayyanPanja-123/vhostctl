@@ -19,6 +19,10 @@ export function getRegistryPath(): string {
   return path.join(getConfigDir(), 'vhosts.json')
 }
 
+export function getBackupDir(): string {
+  return path.join(getConfigDir(), 'backups')
+}
+
 export function getHostsFilePath(): string {
   if (process.platform === 'win32') {
     const systemRoot = process.env.SystemRoot ?? 'C:\\Windows'

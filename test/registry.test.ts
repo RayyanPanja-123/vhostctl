@@ -23,10 +23,12 @@ function makeVHost(overrides: Partial<VHost> = {}): VHost {
 describe('registry', () => {
   let tmpDir: string
   let registryPath: string
+  let backupDir: string
 
   beforeEach(() => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'vhostctl-registry-'))
     registryPath = path.join(tmpDir, 'vhosts.json')
+    backupDir = path.join(tmpDir, 'backups')
   })
 
   afterEach(() => {
@@ -38,13 +40,26 @@ describe('registry', () => {
     expect(registry).toEqual({ vhosts: [], detectedStacks: [], detectedAt: null })
   })
 
-  it('round-trips a saved registry', () => {
+  it('round-trips a saved registry, with no backup on first save', () => {
     const registry = upsertVHost(loadRegistry(registryPath), makeVHost())
-    saveRegistry(registry, registryPath)
+    const backupPath = saveRegistry(registry, registryPath, backupDir)
+    expect(backupPath).toBeNull()
 
     const reloaded = loadRegistry(registryPath)
     expect(reloaded.vhosts).toHaveLength(1)
     expect(findVHost(reloaded, 'myapp')?.domain).toBe('myapp.local')
+  })
+
+  it('backs up the previous contents on a second save', () => {
+    const registry = upsertVHost(loadRegistry(registryPath), makeVHost())
+    saveRegistry(registry, registryPath, backupDir)
+
+    const updated = upsertVHost(registry, makeVHost({ port: 8080 }))
+    const backupPath = saveRegistry(updated, registryPath, backupDir)
+
+    expect(backupPath).not.toBeNull()
+    const backedUp = JSON.parse(fs.readFileSync(backupPath as string, 'utf8'))
+    expect(backedUp.vhosts[0].port).toBe(80)
   })
 
   it('upsert replaces an existing vhost with the same name instead of duplicating it', () => {

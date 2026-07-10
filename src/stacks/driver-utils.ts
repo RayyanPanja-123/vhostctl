@@ -1,6 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import type { StackHandle, VHost } from '../core/types.js'
+import { deleteFileSafe, writeFileSafe } from '../utils/fs-safe.js'
+import { getBackupDir } from '../utils/paths.js'
 import { commentOutBlock, hasBlock, removeBlock, upsertBlock, wrapMarkers } from './block-file.js'
 
 export type BlockRenderer = (vhost: VHost) => string
@@ -13,16 +15,20 @@ function perSiteLinkPath(stack: StackHandle, name: string): string {
   return path.join(stack.sitesEnabledDir as string, `${name}.conf`)
 }
 
-/** Writes the vhost's config (creating it or replacing an existing block) and returns the config file path. */
-export function writeVHostConfig(stack: StackHandle, vhost: VHost, render: BlockRenderer): string {
+/** Writes the vhost's config (creating it or replacing an existing block). Returns the config file path and backup path. */
+export function writeVHostConfig(
+  stack: StackHandle,
+  vhost: VHost,
+  render: BlockRenderer,
+  backupDir: string = getBackupDir(),
+): { configFile: string; backupPath: string | null } {
   const block = render(vhost)
   if (stack.writeMode === 'single-file') {
-    upsertBlock(stack.vhostsFilePath as string, vhost.name, block)
-    return stack.vhostsFilePath as string
+    const backupPath = upsertBlock(stack.vhostsFilePath as string, vhost.name, block, backupDir)
+    return { configFile: stack.vhostsFilePath as string, backupPath }
   }
   const filePath = perSiteFilePath(stack, vhost.name)
-  fs.mkdirSync(path.dirname(filePath), { recursive: true })
-  fs.writeFileSync(filePath, wrapMarkers(vhost.name, block), 'utf8')
+  const { backupPath } = writeFileSafe(filePath, wrapMarkers(vhost.name, block), backupDir)
   if (stack.enableMechanism === 'symlink' && stack.sitesEnabledDir) {
     fs.mkdirSync(stack.sitesEnabledDir, { recursive: true })
     const linkPath = perSiteLinkPath(stack, vhost.name)
@@ -30,23 +36,31 @@ export function writeVHostConfig(stack: StackHandle, vhost: VHost, render: Block
       fs.symlinkSync(filePath, linkPath)
     }
   }
-  return filePath
+  return { configFile: filePath, backupPath }
 }
 
-export function removeVHostConfig(stack: StackHandle, vhost: VHost): void {
+/** Removes the vhost's config. Returns the backup path, or `null`. */
+export function removeVHostConfig(stack: StackHandle, vhost: VHost, backupDir: string = getBackupDir()): string | null {
   if (stack.writeMode === 'single-file') {
-    removeBlock(stack.vhostsFilePath as string, vhost.name)
-    return
+    return removeBlock(stack.vhostsFilePath as string, vhost.name, backupDir)
   }
   if (stack.enableMechanism === 'symlink' && stack.sitesEnabledDir) {
     const linkPath = perSiteLinkPath(stack, vhost.name)
     if (fs.existsSync(linkPath)) fs.rmSync(linkPath)
   }
   const filePath = perSiteFilePath(stack, vhost.name)
-  if (fs.existsSync(filePath)) fs.rmSync(filePath)
+  if (!fs.existsSync(filePath)) return null
+  return deleteFileSafe(filePath, backupDir)
 }
 
-export function setVHostEnabled(stack: StackHandle, vhost: VHost, enabled: boolean, render: BlockRenderer): void {
+/** Enables/disables the vhost. Returns the backup path, or `null` if only a symlink was toggled (no content change). */
+export function setVHostEnabled(
+  stack: StackHandle,
+  vhost: VHost,
+  enabled: boolean,
+  render: BlockRenderer,
+  backupDir: string = getBackupDir(),
+): string | null {
   if (stack.enableMechanism === 'symlink' && stack.writeMode === 'per-site-file' && stack.sitesEnabledDir) {
     const filePath = perSiteFilePath(stack, vhost.name)
     const linkPath = perSiteLinkPath(stack, vhost.name)
@@ -56,18 +70,16 @@ export function setVHostEnabled(stack: StackHandle, vhost: VHost, enabled: boole
     } else if (fs.existsSync(linkPath)) {
       fs.rmSync(linkPath)
     }
-    return
+    return null
   }
 
   const rendered = render(vhost)
   const block = enabled ? rendered : commentOutBlock(rendered)
   if (stack.writeMode === 'single-file') {
-    upsertBlock(stack.vhostsFilePath as string, vhost.name, block)
-  } else {
-    const filePath = perSiteFilePath(stack, vhost.name)
-    fs.mkdirSync(path.dirname(filePath), { recursive: true })
-    fs.writeFileSync(filePath, wrapMarkers(vhost.name, block), 'utf8')
+    return upsertBlock(stack.vhostsFilePath as string, vhost.name, block, backupDir)
   }
+  const filePath = perSiteFilePath(stack, vhost.name)
+  return writeFileSafe(filePath, wrapMarkers(vhost.name, block), backupDir).backupPath
 }
 
 export function vhostConfigExists(stack: StackHandle, name: string): boolean {

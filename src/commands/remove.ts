@@ -4,11 +4,14 @@ import { ensureWritable } from '../core/elevate.js'
 import { removeEntries } from '../core/hosts-file.js'
 import { findVHost, loadRegistry, removeVHost, saveRegistry } from '../core/registry.js'
 import { detectAllStacks, getDriver } from '../stacks/detect.js'
+import type { FileChange } from '../stacks/validate.js'
+import { validateOrRollback } from '../stacks/validate.js'
 import { getHostsFilePath } from '../utils/paths.js'
 import { logger } from '../utils/logger.js'
 
 interface RemoveOptions {
   yes?: boolean
+  skipValidate?: boolean
 }
 
 export function registerRemoveCommand(program: Command): void {
@@ -17,6 +20,7 @@ export function registerRemoveCommand(program: Command): void {
     .alias('rm')
     .description('Remove a virtual host (config block + hosts entries)')
     .option('-y, --yes', 'skip the confirmation prompt')
+    .option('--skip-validate', 'skip the config-test check after removing')
     .addHelpText(
       'after',
       `
@@ -59,8 +63,24 @@ Examples:
       const configFile = driver.configFilePath(stack, vhost.name)
       ensureWritable([configFile, getHostsFilePath()], ['remove', name, '--yes'])
 
-      driver.remove(stack, vhost)
-      removeEntries(vhost.name)
+      const changes: FileChange[] = []
+      const configBackup = driver.remove(stack, vhost)
+      if (configBackup !== null) {
+        changes.push({ path: configFile, backupPath: configBackup })
+      }
+
+      const hostsBackup = removeEntries(vhost.name)
+      if (hostsBackup !== null) {
+        changes.push({ path: getHostsFilePath(), backupPath: hostsBackup })
+      }
+
+      const validation = validateOrRollback(stack, changes, options.skipValidate)
+      if (!validation.ok) {
+        logger.error(`Configuration is invalid — changes rolled back.\n${validation.output}`)
+        process.exitCode = 1
+        return
+      }
+
       saveRegistry(removeVHost(registry, vhost.name))
 
       logger.success(`Removed vhost "${name}".`)

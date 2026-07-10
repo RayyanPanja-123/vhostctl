@@ -6,6 +6,8 @@ import { addEntries, previewEntries } from '../core/hosts-file.js'
 import { findVHost, loadRegistry, saveRegistry, upsertVHost } from '../core/registry.js'
 import type { StackHandle, StackKind, VHost } from '../core/types.js'
 import { detectAllStacks, getDriver } from '../stacks/detect.js'
+import type { FileChange } from '../stacks/validate.js'
+import { validateOrRollback } from '../stacks/validate.js'
 import { getHostsFilePath } from '../utils/paths.js'
 import { logger } from '../utils/logger.js'
 
@@ -16,6 +18,7 @@ interface AddCliOptions {
   port?: string
   hosts?: boolean
   dryRun?: boolean
+  skipValidate?: boolean
 }
 
 export function registerAddCommand(program: Command): void {
@@ -28,6 +31,7 @@ export function registerAddCommand(program: Command): void {
     .option('-p, --port <port>', 'port to listen on', '80')
     .option('--no-hosts', 'skip editing the OS hosts file')
     .option('--dry-run', 'preview changes without writing anything')
+    .option('--skip-validate', 'skip the config-test check after writing')
     .addHelpText(
       'after',
       `
@@ -153,10 +157,22 @@ async function addVHost(name: string, options: AddCliOptions): Promise<void> {
   if (!useHosts) relaunchArgs.push('--no-hosts')
   ensureWritable(pathsToCheck, relaunchArgs)
 
-  driver.write(stack, vhost)
+  const changes: FileChange[] = []
+  const written = driver.write(stack, vhost)
+  changes.push({ path: written.configFile, backupPath: written.backupPath })
 
   if (useHosts) {
-    addEntries(name, [domain])
+    const hostsResult = addEntries(name, [domain])
+    if (hostsResult.added.length > 0) {
+      changes.push({ path: getHostsFilePath(), backupPath: hostsResult.backupPath })
+    }
+  }
+
+  const validation = validateOrRollback(stack, changes, options.skipValidate)
+  if (!validation.ok) {
+    logger.error(`Configuration is invalid — changes rolled back.\n${validation.output}`)
+    process.exitCode = 1
+    return
   }
 
   saveRegistry(upsertVHost(registry, vhost))

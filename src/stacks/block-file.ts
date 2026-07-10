@@ -1,4 +1,6 @@
 import fs from 'node:fs'
+import { writeFileSafe } from '../utils/fs-safe.js'
+import { getBackupDir } from '../utils/paths.js'
 
 function startMarker(name: string): string {
   return `# vhostctl:${name}:start`
@@ -12,8 +14,13 @@ export function wrapMarkers(name: string, block: string): string {
   return `${startMarker(name)}\n${block}\n${endMarker(name)}\n`
 }
 
-/** Insert or replace a marker-delimited block inside a shared config file. */
-export function upsertBlock(filePath: string, name: string, block: string): void {
+/** Insert or replace a marker-delimited block inside a shared config file. Returns the backup path, or `null`. */
+export function upsertBlock(
+  filePath: string,
+  name: string,
+  block: string,
+  backupDir: string = getBackupDir(),
+): string | null {
   const wrapped = wrapMarkers(name, block)
   let content = fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf8') : ''
   const start = content.indexOf(startMarker(name))
@@ -26,20 +33,20 @@ export function upsertBlock(filePath: string, name: string, block: string): void
     const separator = content.length === 0 || content.endsWith('\n\n') ? '' : content.endsWith('\n') ? '\n' : '\n\n'
     content = content + separator + wrapped
   }
-  fs.writeFileSync(filePath, content, 'utf8')
+  return writeFileSafe(filePath, content, backupDir).backupPath
 }
 
-/** Remove a marker-delimited block from a shared config file, if present. */
-export function removeBlock(filePath: string, name: string): void {
-  if (!fs.existsSync(filePath)) return
+/** Remove a marker-delimited block from a shared config file, if present. Returns the backup path, or `null`. */
+export function removeBlock(filePath: string, name: string, backupDir: string = getBackupDir()): string | null {
+  if (!fs.existsSync(filePath)) return null
   const content = fs.readFileSync(filePath, 'utf8')
   const start = content.indexOf(startMarker(name))
   const end = content.indexOf(endMarker(name))
-  if (start === -1 || end === -1) return
+  if (start === -1 || end === -1) return null
   const before = content.slice(0, start)
   const after = content.slice(end + endMarker(name).length)
   const cleaned = (before.trimEnd() + '\n' + after.trimStart()).replace(/\n{3,}/g, '\n\n')
-  fs.writeFileSync(filePath, cleaned, 'utf8')
+  return writeFileSafe(filePath, cleaned, backupDir).backupPath
 }
 
 export function hasBlock(filePath: string, name: string): boolean {

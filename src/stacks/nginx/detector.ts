@@ -14,6 +14,7 @@ export function detectNginxStacks(): StackHandle[] {
   if (process.platform === 'win32') {
     const root = 'C:\\nginx'
     if (!exists(path.join(root, 'conf', 'nginx.conf'))) return []
+    const nginxBin = path.join(root, 'nginx.exe')
     return [
       {
         kind: 'nginx',
@@ -22,7 +23,8 @@ export function detectNginxStacks(): StackHandle[] {
         sitesAvailableDir: path.join(root, 'conf', 'sites-available'),
         sitesEnabledDir: path.join(root, 'conf', 'sites-enabled'),
         enableMechanism: 'symlink',
-        reloadCommand: [path.join(root, 'nginx.exe'), '-s', 'reload'],
+        reloadCommand: [nginxBin, '-s', 'reload'],
+        configTestCommand: [nginxBin, '-t'],
         defaultDocroot: path.join(root, 'html'),
         installRoot: root,
       },
@@ -40,6 +42,7 @@ export function detectNginxStacks(): StackHandle[] {
           sitesAvailableDir: path.join(root, 'servers'),
           enableMechanism: 'comment-toggle',
           reloadCommand: ['nginx', '-s', 'reload'],
+          configTestCommand: ['nginx', '-t'],
           defaultDocroot: path.join(root, 'html'),
           installRoot: root,
         },
@@ -59,6 +62,7 @@ export function detectNginxStacks(): StackHandle[] {
         sitesEnabledDir: '/etc/nginx/sites-enabled',
         enableMechanism: 'symlink',
         reloadCommand: ['nginx', '-s', 'reload'],
+        configTestCommand: ['nginx', '-t'],
         defaultDocroot: '/var/www/html',
         installRoot: '/etc/nginx',
       },
@@ -75,6 +79,7 @@ export function detectNginxStacks(): StackHandle[] {
         sitesAvailableDir: '/etc/nginx/conf.d',
         enableMechanism: 'comment-toggle',
         reloadCommand: ['nginx', '-s', 'reload'],
+        configTestCommand: ['nginx', '-t'],
         defaultDocroot: '/usr/share/nginx/html',
         installRoot: '/etc/nginx',
       },

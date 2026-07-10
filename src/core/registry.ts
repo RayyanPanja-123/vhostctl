@@ -1,6 +1,6 @@
 import fs from 'node:fs'
-import path from 'node:path'
-import { getRegistryPath } from '../utils/paths.js'
+import { writeFileSafe } from '../utils/fs-safe.js'
+import { getBackupDir, getRegistryPath } from '../utils/paths.js'
 import type { Registry, StackHandle, VHost } from './types.js'
 
 function emptyRegistry(): Registry {
@@ -23,9 +23,12 @@ export function loadRegistry(registryPath: string = getRegistryPath()): Registry
   }
 }
 
-export function saveRegistry(registry: Registry, registryPath: string = getRegistryPath()): void {
-  fs.mkdirSync(path.dirname(registryPath), { recursive: true })
-  fs.writeFileSync(registryPath, JSON.stringify(registry, null, 2) + '\n', 'utf8')
+export function saveRegistry(
+  registry: Registry,
+  registryPath: string = getRegistryPath(),
+  backupDir: string = getBackupDir(),
+): string | null {
+  return writeFileSafe(registryPath, JSON.stringify(registry, null, 2) + '\n', backupDir).backupPath
 }
 
 export function findVHost(registry: Registry, name: string): VHost | undefined {

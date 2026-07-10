@@ -48,9 +48,11 @@ beforeAll(() => {
 describe('driver-utils: single-file stack (e.g. XAMPP)', () => {
   let tmpDir: string
   let stack: StackHandle
+  let backupDir: string
 
   beforeEach(() => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'vhostctl-driver-single-'))
+    backupDir = path.join(tmpDir, 'backups')
     stack = {
       kind: 'xampp-apache',
       label: 'XAMPP (Apache)',
@@ -67,24 +69,34 @@ describe('driver-utils: single-file stack (e.g. XAMPP)', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true })
   })
 
-  it('writes a block into the shared vhosts file', () => {
+  it('writes a block into the shared vhosts file, with no backup on first creation', () => {
     const vhost = makeVHost()
-    const configFile = writeVHostConfig(stack, vhost, renderApacheBlock)
+    const { configFile, backupPath } = writeVHostConfig(stack, vhost, renderApacheBlock, backupDir)
 
     expect(configFile).toBe(stack.vhostsFilePath)
+    expect(backupPath).toBeNull()
     expect(vhostConfigExists(stack, vhost.name)).toBe(true)
     expect(fs.readFileSync(configFile, 'utf8')).toContain('ServerName myapp.local')
   })
 
+  it('backs up the prior content on overwrite', () => {
+    const vhost = makeVHost()
+    writeVHostConfig(stack, vhost, renderApacheBlock, backupDir)
+    const { backupPath } = writeVHostConfig(stack, { ...vhost, port: 8080 }, renderApacheBlock, backupDir)
+
+    expect(backupPath).not.toBeNull()
+    expect(fs.readFileSync(backupPath as string, 'utf8')).toContain('ServerName myapp.local')
+  })
+
   it('comments out the block when disabled, and restores it when re-enabled', () => {
     const vhost = makeVHost()
-    writeVHostConfig(stack, vhost, renderApacheBlock)
+    writeVHostConfig(stack, vhost, renderApacheBlock, backupDir)
 
-    setVHostEnabled(stack, vhost, false, renderApacheBlock)
+    setVHostEnabled(stack, vhost, false, renderApacheBlock, backupDir)
     const disabledContent = fs.readFileSync(stack.vhostsFilePath as string, 'utf8')
     expect(disabledContent).toContain(commentOutBlock(renderApacheBlock(vhost)))
 
-    setVHostEnabled(stack, vhost, true, renderApacheBlock)
+    setVHostEnabled(stack, vhost, true, renderApacheBlock, backupDir)
     const restored = fs.readFileSync(stack.vhostsFilePath as string, 'utf8')
     expect(restored).toContain(renderApacheBlock(vhost))
     expect(restored).not.toContain(commentOutBlock(renderApacheBlock(vhost)))
@@ -92,10 +104,11 @@ describe('driver-utils: single-file stack (e.g. XAMPP)', () => {
 
   it('removes the block entirely', () => {
     const vhost = makeVHost()
-    writeVHostConfig(stack, vhost, renderApacheBlock)
-    removeVHostConfig(stack, vhost)
+    writeVHostConfig(stack, vhost, renderApacheBlock, backupDir)
+    const backupPath = removeVHostConfig(stack, vhost, backupDir)
 
     expect(vhostConfigExists(stack, vhost.name)).toBe(false)
+    expect(backupPath).not.toBeNull()
   })
 
   it('getConfigFilePath returns the shared file for single-file mode', () => {
@@ -125,20 +138,23 @@ describe('driver-utils: per-site-file stack with comment-toggle (e.g. RHEL httpd
     fs.rmSync(tmpDir, { recursive: true, force: true })
   })
 
-  it('creates one config file per site', () => {
+  it('creates one config file per site, with no backup on first creation', () => {
     const vhost = makeVHost()
-    const configFile = writeVHostConfig(stack, vhost, renderApacheBlock)
+    const { configFile, backupPath } = writeVHostConfig(stack, vhost, renderApacheBlock)
 
     expect(configFile).toBe(path.join(tmpDir, 'myapp.conf'))
     expect(fs.existsSync(configFile)).toBe(true)
+    expect(backupPath).toBeNull()
   })
 
-  it('removes the per-site file', () => {
+  it('removes the per-site file, backing up its content first', () => {
     const vhost = makeVHost()
     writeVHostConfig(stack, vhost, renderApacheBlock)
-    removeVHostConfig(stack, vhost)
+    const backupPath = removeVHostConfig(stack, vhost)
 
     expect(fs.existsSync(path.join(tmpDir, 'myapp.conf'))).toBe(false)
+    expect(backupPath).not.toBeNull()
+    expect(fs.readFileSync(backupPath as string, 'utf8')).toContain('ServerName myapp.local')
   })
 })
 

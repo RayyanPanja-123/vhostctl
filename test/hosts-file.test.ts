@@ -7,10 +7,12 @@ import { addEntries, getManagedDomains, previewEntries, removeDomain, removeEntr
 describe('hosts-file', () => {
   let tmpDir: string
   let hostsPath: string
+  let backupDir: string
 
   beforeEach(() => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'vhostctl-hosts-'))
     hostsPath = path.join(tmpDir, 'hosts')
+    backupDir = path.join(tmpDir, 'backups')
     fs.writeFileSync(hostsPath, '127.0.0.1 localhost\n::1 localhost\n', 'utf8')
   })
 
@@ -19,36 +21,40 @@ describe('hosts-file', () => {
   })
 
   it('adds new managed entries without touching unrelated lines', () => {
-    const added = addEntries('myapp', ['myapp.local'], hostsPath)
+    const { added, backupPath } = addEntries('myapp', ['myapp.local'], hostsPath, backupDir)
     expect(added).toEqual(['127.0.0.1 myapp.local # vhostctl:myapp'])
+    expect(backupPath).not.toBeNull()
+    expect(fs.readFileSync(backupPath as string, 'utf8')).toBe('127.0.0.1 localhost\n::1 localhost\n')
 
     const content = fs.readFileSync(hostsPath, 'utf8')
     expect(content).toContain('127.0.0.1 localhost')
     expect(content).toContain('127.0.0.1 myapp.local # vhostctl:myapp')
   })
 
-  it('does not duplicate an already-managed domain', () => {
-    addEntries('myapp', ['myapp.local'], hostsPath)
-    const secondAdd = addEntries('myapp', ['myapp.local'], hostsPath)
-    expect(secondAdd).toEqual([])
+  it('does not duplicate an already-managed domain, and reports no backup for the no-op', () => {
+    addEntries('myapp', ['myapp.local'], hostsPath, backupDir)
+    const second = addEntries('myapp', ['myapp.local'], hostsPath, backupDir)
+    expect(second.added).toEqual([])
+    expect(second.backupPath).toBeNull()
 
     const matches = fs.readFileSync(hostsPath, 'utf8').match(/myapp\.local/g) ?? []
     expect(matches).toHaveLength(1)
   })
 
   it('lists only the domains managed under a given name', () => {
-    addEntries('myapp', ['myapp.local', 'api.myapp.local'], hostsPath)
-    addEntries('other', ['other.local'], hostsPath)
+    addEntries('myapp', ['myapp.local', 'api.myapp.local'], hostsPath, backupDir)
+    addEntries('other', ['other.local'], hostsPath, backupDir)
 
     expect(getManagedDomains('myapp', hostsPath).sort()).toEqual(['api.myapp.local', 'myapp.local'])
     expect(getManagedDomains('other', hostsPath)).toEqual(['other.local'])
   })
 
   it('removes only entries for the given name', () => {
-    addEntries('myapp', ['myapp.local'], hostsPath)
-    addEntries('other', ['other.local'], hostsPath)
+    addEntries('myapp', ['myapp.local'], hostsPath, backupDir)
+    addEntries('other', ['other.local'], hostsPath, backupDir)
 
-    removeEntries('myapp', hostsPath)
+    const backupPath = removeEntries('myapp', hostsPath, backupDir)
+    expect(backupPath).not.toBeNull()
 
     const content = fs.readFileSync(hostsPath, 'utf8')
     expect(content).not.toContain('myapp.local')
@@ -57,9 +63,9 @@ describe('hosts-file', () => {
   })
 
   it('removes a single subdomain while keeping the rest of that vhost intact', () => {
-    addEntries('myapp', ['myapp.local', 'api.myapp.local'], hostsPath)
+    addEntries('myapp', ['myapp.local', 'api.myapp.local'], hostsPath, backupDir)
 
-    removeDomain('myapp', 'api.myapp.local', hostsPath)
+    removeDomain('myapp', 'api.myapp.local', hostsPath, backupDir)
 
     expect(getManagedDomains('myapp', hostsPath)).toEqual(['myapp.local'])
   })

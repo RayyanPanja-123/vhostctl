@@ -42,6 +42,9 @@ function detectXampp(): StackHandle | null {
     vhostsFilePath,
     enableMechanism: 'comment-toggle',
     reloadCommand: process.platform === 'win32' ? [httpdBin, '-k', 'restart'] : [httpdBin, 'reloadapache'],
+    // XAMPP's `lampp` wrapper script's config-test support isn't confirmed, so leave it unset there
+    // rather than guess wrong; the real httpd.exe binary on Windows supports -t directly.
+    configTestCommand: process.platform === 'win32' ? [httpdBin, '-t'] : undefined,
     defaultDocroot: path.join(root, 'htdocs'),
     installRoot: root,
   }
@@ -59,13 +62,15 @@ function detectWamp(): StackHandle | null {
     const aliasDir = path.join(root, 'alias')
     if (!exists(aliasDir)) continue
 
+    const httpdBin = path.join(apacheParent, apacheDir, 'bin', 'httpd.exe')
     return {
       kind: 'wamp-apache',
       label: 'WAMP (Apache)',
       writeMode: 'per-site-file',
       sitesAvailableDir: aliasDir,
       enableMechanism: 'comment-toggle',
-      reloadCommand: [path.join(apacheParent, apacheDir, 'bin', 'httpd.exe'), '-k', 'restart'],
+      reloadCommand: [httpdBin, '-k', 'restart'],
+      configTestCommand: [httpdBin, '-t'],
       defaultDocroot: path.join(root, 'www'),
       installRoot: root,
     }
@@ -78,13 +83,15 @@ function detectStandaloneApache(): StackHandle | null {
     const root = 'C:\\Apache24'
     const vhostsFilePath = path.join(root, 'conf', 'extra', 'httpd-vhosts.conf')
     if (!exists(vhostsFilePath)) return null
+    const httpdBin = path.join(root, 'bin', 'httpd.exe')
     return {
       kind: 'apache',
       label: 'Apache (standalone)',
       writeMode: 'single-file',
       vhostsFilePath,
       enableMechanism: 'comment-toggle',
-      reloadCommand: [path.join(root, 'bin', 'httpd.exe'), '-k', 'restart'],
+      reloadCommand: [httpdBin, '-k', 'restart'],
+      configTestCommand: [httpdBin, '-t'],
       defaultDocroot: path.join(root, 'htdocs'),
       installRoot: root,
     }
@@ -101,6 +108,7 @@ function detectStandaloneApache(): StackHandle | null {
           vhostsFilePath,
           enableMechanism: 'comment-toggle',
           reloadCommand: ['apachectl', 'graceful'],
+          configTestCommand: ['apachectl', 'configtest'],
           defaultDocroot: path.join(root, 'htdocs'),
           installRoot: root,
         }
@@ -119,6 +127,7 @@ function detectStandaloneApache(): StackHandle | null {
       sitesEnabledDir: '/etc/apache2/sites-enabled',
       enableMechanism: 'symlink',
       reloadCommand: ['apache2ctl', 'graceful'],
+      configTestCommand: ['apache2ctl', 'configtest'],
       defaultDocroot: '/var/www/html',
       installRoot: '/etc/apache2',
     }
@@ -133,6 +142,7 @@ function detectStandaloneApache(): StackHandle | null {
       sitesAvailableDir: '/etc/httpd/conf.d',
       enableMechanism: 'comment-toggle',
       reloadCommand: ['apachectl', 'graceful'],
+      configTestCommand: ['apachectl', 'configtest'],
       defaultDocroot: '/var/www/html',
       installRoot: '/etc/httpd',
     }

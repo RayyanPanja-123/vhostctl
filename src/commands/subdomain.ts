@@ -5,6 +5,8 @@ import { addEntries, removeDomain } from '../core/hosts-file.js'
 import { findVHost, loadRegistry, saveRegistry, upsertVHost } from '../core/registry.js'
 import type { Registry, VHost } from '../core/types.js'
 import { detectAllStacks, getDriver } from '../stacks/detect.js'
+import type { FileChange } from '../stacks/validate.js'
+import { validateOrRollback } from '../stacks/validate.js'
 import { getHostsFilePath } from '../utils/paths.js'
 import { logger } from '../utils/logger.js'
 
@@ -37,7 +39,7 @@ async function resolveVHostName(name: string | undefined, registry: Registry): P
   return name ?? pickVHostName(registry)
 }
 
-async function subdomainAdd(name: string | undefined, sub: string | undefined): Promise<void> {
+async function subdomainAdd(name: string | undefined, sub: string | undefined, skipValidate?: boolean): Promise<void> {
   const registry = loadRegistry()
 
   const vhostName = await resolveVHostName(name, registry)
@@ -86,11 +88,23 @@ async function subdomainAdd(name: string | undefined, sub: string | undefined): 
   const configFile = driver.configFilePath(stack, vhost.name)
   ensureWritable([configFile, getHostsFilePath()], ['subdomain', 'add', vhost.name, domain])
 
-  driver.write(stack, updatedVHost)
+  const changes: FileChange[] = []
+  const written = driver.write(stack, updatedVHost)
+  changes.push({ path: written.configFile, backupPath: written.backupPath })
   if (!vhost.enabled) {
     driver.setEnabled(stack, updatedVHost, false)
   }
-  addEntries(vhost.name, [domain])
+  const hostsResult = addEntries(vhost.name, [domain])
+  if (hostsResult.added.length > 0) {
+    changes.push({ path: getHostsFilePath(), backupPath: hostsResult.backupPath })
+  }
+
+  const validation = validateOrRollback(stack, changes, skipValidate)
+  if (!validation.ok) {
+    logger.error(`Configuration is invalid — changes rolled back.\n${validation.output}`)
+    process.exitCode = 1
+    return
+  }
 
   saveRegistry(upsertVHost(registry, updatedVHost))
 
@@ -98,7 +112,7 @@ async function subdomainAdd(name: string | undefined, sub: string | undefined): 
   logger.info('Run `vhostctl reload` to apply the change.')
 }
 
-async function subdomainRemove(name: string | undefined, sub: string | undefined): Promise<void> {
+async function subdomainRemove(name: string | undefined, sub: string | undefined, skipValidate?: boolean): Promise<void> {
   const registry = loadRegistry()
 
   const vhostName = await resolveVHostName(name, registry)
@@ -152,11 +166,23 @@ async function subdomainRemove(name: string | undefined, sub: string | undefined
   const configFile = driver.configFilePath(stack, vhost.name)
   ensureWritable([configFile, getHostsFilePath()], ['subdomain', 'remove', vhost.name, domain])
 
-  driver.write(stack, updatedVHost)
+  const changes: FileChange[] = []
+  const written = driver.write(stack, updatedVHost)
+  changes.push({ path: written.configFile, backupPath: written.backupPath })
   if (!vhost.enabled) {
     driver.setEnabled(stack, updatedVHost, false)
   }
-  removeDomain(vhost.name, domain)
+  const hostsBackup = removeDomain(vhost.name, domain)
+  if (hostsBackup !== null) {
+    changes.push({ path: getHostsFilePath(), backupPath: hostsBackup })
+  }
+
+  const validation = validateOrRollback(stack, changes, skipValidate)
+  if (!validation.ok) {
+    logger.error(`Configuration is invalid — changes rolled back.\n${validation.output}`)
+    process.exitCode = 1
+    return
+  }
 
   saveRegistry(upsertVHost(registry, updatedVHost))
 
@@ -197,6 +223,7 @@ export function registerSubdomainCommand(program: Command): void {
   subdomain
     .command('add [name] [sub]')
     .description('Link a subdomain to an existing vhost')
+    .option('--skip-validate', 'skip the config-test check after writing')
     .addHelpText(
       'after',
       `
@@ -206,14 +233,15 @@ Examples:
   $ vhostctl subdomain add
 `,
     )
-    .action(async (name: string | undefined, sub: string | undefined) => {
-      await subdomainAdd(name, sub)
+    .action(async (name: string | undefined, sub: string | undefined, options: { skipValidate?: boolean }) => {
+      await subdomainAdd(name, sub, options.skipValidate)
     })
 
   subdomain
     .command('remove [name] [sub]')
     .alias('rm')
     .description('Unlink a subdomain from a vhost')
+    .option('--skip-validate', 'skip the config-test check after writing')
     .addHelpText(
       'after',
       `
@@ -222,8 +250,8 @@ Examples:
   $ vhostctl subdomain remove
 `,
     )
-    .action(async (name: string | undefined, sub: string | undefined) => {
-      await subdomainRemove(name, sub)
+    .action(async (name: string | undefined, sub: string | undefined, options: { skipValidate?: boolean }) => {
+      await subdomainRemove(name, sub, options.skipValidate)
     })
 
   subdomain

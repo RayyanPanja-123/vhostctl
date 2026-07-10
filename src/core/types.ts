@@ -16,6 +16,8 @@ export interface StackHandle {
   sitesEnabledDir?: string
   enableMechanism: EnableMechanism
   reloadCommand: string[]
+  /** Command that checks config syntax without applying it (e.g. `nginx -t`). Absent if unknown for this stack. */
+  configTestCommand?: string[]
   defaultDocroot: string
   /** Root install dir, used only for display in `detect`/`view`. */
   installRoot: string

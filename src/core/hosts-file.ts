@@ -1,5 +1,6 @@
 import fs from 'node:fs'
-import { getHostsFilePath } from '../utils/paths.js'
+import { writeFileSafe } from '../utils/fs-safe.js'
+import { getBackupDir, getHostsFilePath } from '../utils/paths.js'
 
 const LOOPBACK_IP = '127.0.0.1'
 
@@ -32,37 +33,51 @@ export function getManagedDomains(name: string, hostsPath: string = getHostsFile
     .filter((domain): domain is string => Boolean(domain))
 }
 
-/** Appends hosts-file lines for any domains not already managed under `name`. Returns the lines actually added. */
-export function addEntries(name: string, domains: string[], hostsPath: string = getHostsFilePath()): string[] {
+/** Appends hosts-file lines for any domains not already managed under `name`. Returns the added lines and backup path. */
+export function addEntries(
+  name: string,
+  domains: string[],
+  hostsPath: string = getHostsFilePath(),
+  backupDir: string = getBackupDir(),
+): { added: string[]; backupPath: string | null } {
   const existingManaged = new Set(getManagedDomains(name, hostsPath))
   const newLines = domains.filter((domain) => !existingManaged.has(domain)).map((domain) => buildHostsLine(name, domain))
-  if (newLines.length === 0) return []
+  if (newLines.length === 0) return { added: [], backupPath: null }
 
   const lines = [...splitLines(readHostsFile(hostsPath)), ...newLines]
-  fs.writeFileSync(hostsPath, lines.join('\n') + '\n', 'utf8')
-  return newLines
+  const { backupPath } = writeFileSafe(hostsPath, lines.join('\n') + '\n', backupDir)
+  return { added: newLines, backupPath }
 }
 
-/** Removes every hosts-file line managed under `name`. */
-export function removeEntries(name: string, hostsPath: string = getHostsFilePath()): void {
+/** Removes every hosts-file line managed under `name`. Returns the backup path, or `null`. */
+export function removeEntries(
+  name: string,
+  hostsPath: string = getHostsFilePath(),
+  backupDir: string = getBackupDir(),
+): string | null {
   const content = readHostsFile(hostsPath)
-  if (!content) return
+  if (!content) return null
   const suffix = marker(name)
   const lines = splitLines(content).filter((line) => !line.trim().endsWith(suffix))
-  fs.writeFileSync(hostsPath, lines.join('\n') + '\n', 'utf8')
+  return writeFileSafe(hostsPath, lines.join('\n') + '\n', backupDir).backupPath
 }
 
-/** Removes only the hosts-file line for one specific domain managed under `name`. */
-export function removeDomain(name: string, domain: string, hostsPath: string = getHostsFilePath()): void {
+/** Removes only the hosts-file line for one specific domain managed under `name`. Returns the backup path, or `null`. */
+export function removeDomain(
+  name: string,
+  domain: string,
+  hostsPath: string = getHostsFilePath(),
+  backupDir: string = getBackupDir(),
+): string | null {
   const content = readHostsFile(hostsPath)
-  if (!content) return
+  if (!content) return null
   const suffix = marker(name)
   const lines = splitLines(content).filter((line) => {
     const trimmed = line.trim()
     if (!trimmed.endsWith(suffix)) return true
     return trimmed.split(/\s+/)[1] !== domain
   })
-  fs.writeFileSync(hostsPath, lines.join('\n') + '\n', 'utf8')
+  return writeFileSafe(hostsPath, lines.join('\n') + '\n', backupDir).backupPath
 }
 
 /** Preview the lines that would be added, without touching the file (used by --dry-run). */
