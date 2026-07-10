@@ -57,7 +57,7 @@ Examples:
 
       const driver = getDriver(stack.kind)
       const configFile = driver.configFilePath(stack, vhost.name)
-      ensureWritable([configFile, getHostsFilePath()])
+      ensureWritable([configFile, getHostsFilePath()], ['remove', name, '--yes'])
 
       driver.remove(stack, vhost)
       removeEntries(vhost.name)

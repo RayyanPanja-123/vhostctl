@@ -49,10 +49,15 @@ function psSingleQuote(value: string): string {
   return `'${value.replace(/'/g, "''")}'`
 }
 
-/** Re-executes the current process elevated (UAC on Windows, sudo on Mac/Linux) and exits with its status. */
-export function relaunchElevated(): never {
+/**
+ * Re-executes the current process elevated (UAC on Windows, sudo on Mac/Linux) and exits with its status.
+ *
+ * Pass `args` when the command resolved values interactively (prompts) before deciding it needed
+ * elevation — those answers only exist in memory, not in process.argv, so the relaunched process
+ * must be given them explicitly or it will prompt the user all over again.
+ */
+export function relaunchElevated(args: string[] = process.argv.slice(2)): never {
   const scriptPath = process.argv[1] ?? ''
-  const args = process.argv.slice(2)
 
   if (process.platform === 'win32') {
     const argString = [scriptPath, ...args].map((a) => `"${a.replace(/"/g, '""')}"`).join(' ')
@@ -68,8 +73,11 @@ export function relaunchElevated(): never {
 /**
  * Ensures every path is writable, self-elevating (and never returning) if it isn't.
  * Throws if already elevated and still unable to write (a real permissions problem, not just missing privilege).
+ *
+ * Pass `relaunchArgs` when the caller already resolved interactive prompts (domain, root, confirmations)
+ * so the elevated relaunch reuses those answers instead of re-prompting from a blank slate.
  */
-export function ensureWritable(paths: string[]): void {
+export function ensureWritable(paths: string[], relaunchArgs?: string[]): void {
   const blocked = paths.filter((p) => !canWritePath(p))
   if (blocked.length === 0) return
 
@@ -79,5 +87,5 @@ export function ensureWritable(paths: string[]): void {
 
   logger.warn(`Elevated permissions are required to write:\n  ${blocked.join('\n  ')}`)
   logger.info(process.platform === 'win32' ? 'Requesting UAC elevation…' : 'Re-running with sudo…')
-  relaunchElevated()
+  relaunchElevated(relaunchArgs)
 }

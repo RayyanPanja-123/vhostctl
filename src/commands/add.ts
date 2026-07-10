@@ -149,7 +149,9 @@ async function addVHost(name: string, options: AddCliOptions): Promise<void> {
 
   const pathsToCheck = [configFile]
   if (useHosts) pathsToCheck.push(getHostsFilePath())
-  ensureWritable(pathsToCheck)
+  const relaunchArgs = ['add', name, '--domain', domain, '--root', docRoot, '--stack', stack.kind, '--port', String(port)]
+  if (!useHosts) relaunchArgs.push('--no-hosts')
+  ensureWritable(pathsToCheck, relaunchArgs)
 
   driver.write(stack, vhost)
 
