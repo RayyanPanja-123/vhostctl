@@ -77,6 +77,7 @@ vhostctl reload
 | `vhostctl subdomain add <name> <sub>` | Point one or more comma-separated subdomains (e.g. `api,admin`) at an existing site, then reload automatically |
 | `vhostctl subdomain remove <name> <sub>` | Unlink one or more subdomains, then reload automatically |
 | `vhostctl subdomain list [name]` | List subdomains for one site, or every site if no name is given |
+| `vhostctl apply <file>` | Create or update vhosts and subdomains from a JSON manifest — see [Deploy manifests](#deploy-manifests) |
 | `vhostctl detect` | Scan your machine for installed web server stacks |
 | `vhostctl reload` | Reload/restart your web server to apply changes |
 | `vhostctl examples` | Print more real-world usage recipes |
@@ -93,6 +94,47 @@ Add `--help` after any command to see all of its options, e.g. `vhostctl add --h
 | `-p, --port <port>` | Port to listen on (default `80`) |
 | `--no-hosts` | Skip editing your hosts file |
 | `--dry-run` | Preview exactly what would change, without writing anything |
+
+## Deploy manifests
+
+For a project with several domains/subdomains, hand-running `add`/`subdomain add` on every server doesn't scale. Instead, commit a manifest describing the desired vhosts alongside the project, push it to the server, and run `vhostctl apply` — it creates whatever's missing and updates whatever's changed, non-interactively:
+
+```bash
+vhostctl apply ./deploy/vhosts.json
+```
+
+```json
+{
+  "defaults": { "stack": "nginx", "port": 80 },
+  "vhosts": [
+    {
+      "name": "myapp",
+      "domain": "myapp.com",
+      "root": "/var/www/myapp",
+      "subdomains": ["api", "admin", "app.myapp.com"]
+    },
+    {
+      "name": "blog",
+      "domain": "blog.myapp.com",
+      "root": "/var/www/blog"
+    }
+  ]
+}
+```
+
+- `name`, `domain`, and `root` are required per vhost. `stack` and `port` fall back to `defaults`, then (for a vhost that already exists) to its current value, then to port `80`.
+- Bare subdomain labels (`"api"`) are expanded against that vhost's `domain`, same as `subdomain add`.
+- `stack` must already be detected on the machine — run `vhostctl detect` first. `apply` never prompts; if a stack can't be resolved unambiguously, it errors out instead.
+
+| Option | Description |
+|---|---|
+| `--dry-run` | Print what would be created/updated, without writing anything |
+| `--hosts` | Also add entries to the OS hosts file (off by default — a real server resolves domains via DNS, not `/etc/hosts`) |
+| `--prune` | Unlink any registered subdomain no longer listed in the manifest (default is additive-only — nothing is ever removed unless you pass this) |
+| `--skip-validate` | Skip the config-test check after writing |
+| `--no-reload` | Don't automatically reload affected stacks afterward |
+
+`apply` is idempotent — re-running it with an unchanged manifest is a no-op, so it's safe to call from a deploy script on every release. A failure on one vhost (e.g. a bad config) rolls back just that vhost and continues with the rest; the process exits non-zero if anything failed, so CI can detect it.
 
 ## Good to know
 

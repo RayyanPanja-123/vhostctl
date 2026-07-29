@@ -2,6 +2,7 @@ import { createRequire } from 'node:module'
 import { Command } from 'commander'
 import { printBanner } from './banner.js'
 import { registerAddCommand } from './commands/add.js'
+import { registerApplyCommand } from './commands/apply.js'
 import { registerDetectCommand } from './commands/detect.js'
 import { registerDisableCommand } from './commands/disable.js'
 import { registerEnableCommand } from './commands/enable.js'
@@ -45,6 +46,7 @@ Examples:
   $ vhostctl list
   $ vhostctl view myapp
   $ vhostctl subdomain add myapp api
+  $ vhostctl apply ./deploy/vhosts.json
   $ vhostctl reload
 
 Run \`vhostctl examples\` for more real-world recipes.
@@ -59,6 +61,7 @@ registerRemoveCommand(program)
 registerEnableCommand(program)
 registerDisableCommand(program)
 registerSubdomainCommand(program)
+registerApplyCommand(program)
 registerReloadCommand(program)
 registerExamplesCommand(program)
 

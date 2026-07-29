@@ -26,6 +26,10 @@ const RECIPES: Array<{ title: string; lines: string[] }> = [
     title: 'Remove a vhost entirely',
     lines: ['vhostctl remove myapp', 'vhostctl reload'],
   },
+  {
+    title: 'Provision a project\'s domains from a manifest (e.g. on deploy)',
+    lines: ['vhostctl apply ./deploy/vhosts.json --dry-run', 'vhostctl apply ./deploy/vhosts.json'],
+  },
 ]
 
 export function registerExamplesCommand(program: Command): void {

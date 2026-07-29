@@ -1,0 +1,19 @@
+{
+  "defaults": {
+    "stack": "nginx",
+    "port": 80
+  },
+  "vhosts": [
+    {
+      "name": "myapp",
+      "domain": "myapp.com",
+      "root": "/var/www/myapp",
+      "subdomains": ["api", "admin", "app.myapp.com"]
+    },
+    {
+      "name": "blog",
+      "domain": "blog.myapp.com",
+      "root": "/var/www/blog"
+    }
+  ]
+}
