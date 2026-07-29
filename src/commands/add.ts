@@ -155,6 +155,7 @@ async function addVHost(name: string, options: AddCliOptions): Promise<void> {
   if (useHosts) pathsToCheck.push(getHostsFilePath())
   const relaunchArgs = ['add', name, '--domain', domain, '--root', docRoot, '--stack', stack.kind, '--port', String(port)]
   if (!useHosts) relaunchArgs.push('--no-hosts')
+  if (options.skipValidate) relaunchArgs.push('--skip-validate')
   ensureWritable(pathsToCheck, relaunchArgs)
 
   const changes: FileChange[] = []

@@ -10,14 +10,43 @@ function encodePathForBackup(filePath: string): string {
   return filePath.replace(/[/\\:]/g, '_')
 }
 
+/** Error codes that typically mean "another process (often antivirus real-time scanning, on
+ * Windows) briefly has the file open" rather than a real permissions or disk problem — worth a
+ * few short retries instead of failing the whole operation outright. */
+const TRANSIENT_FS_CODES = new Set(['EBUSY', 'EPERM', 'EACCES'])
+
+function isTransientFsError(err: unknown): boolean {
+  return typeof err === 'object' && err !== null && 'code' in err && TRANSIENT_FS_CODES.has(String((err as { code: unknown }).code))
+}
+
+function sleepSync(ms: number): void {
+  const until = Date.now() + ms
+  while (Date.now() < until) {
+    /* busy-wait: Windows file locks here are held for single-digit milliseconds, not worth an async dance */
+  }
+}
+
+/** Retries `fn` a few times on transient file-lock errors (see `TRANSIENT_FS_CODES`) before giving up. */
+function withRetry<T>(fn: () => T, attempts = 4, delayMs = 75): T {
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      return fn()
+    } catch (err) {
+      if (attempt === attempts || !isTransientFsError(err)) throw err
+      sleepSync(delayMs)
+    }
+  }
+  throw new Error('unreachable')
+}
+
 /** Writes `content` to `filePath` atomically: temp file in the same directory, then rename over the target. */
 export function writeFileAtomic(filePath: string, content: string): void {
   const dir = path.dirname(filePath)
   fs.mkdirSync(dir, { recursive: true })
   const tmpPath = path.join(dir, `.vhostctl-tmp-${process.pid}-${Date.now()}-${randomSuffix()}`)
   try {
-    fs.writeFileSync(tmpPath, content, 'utf8')
-    fs.renameSync(tmpPath, filePath)
+    withRetry(() => fs.writeFileSync(tmpPath, content, 'utf8'))
+    withRetry(() => fs.renameSync(tmpPath, filePath))
   } catch (err) {
     fs.rmSync(tmpPath, { force: true })
     throw err
@@ -33,7 +62,7 @@ export function backupFile(filePath: string, backupDir: string = getBackupDir())
   if (!fs.existsSync(filePath)) return null
   fs.mkdirSync(backupDir, { recursive: true })
   const backupPath = path.join(backupDir, `${encodePathForBackup(filePath)}.${Date.now()}-${randomSuffix()}.bak`)
-  fs.copyFileSync(filePath, backupPath)
+  withRetry(() => fs.copyFileSync(filePath, backupPath))
   return backupPath
 }
 

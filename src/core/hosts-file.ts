@@ -80,6 +80,32 @@ export function removeDomain(
   return writeFileSafe(hostsPath, lines.join('\n') + '\n', backupDir).backupPath
 }
 
+/** Removes the hosts-file lines for several domains managed under `name` in one write. Returns which were actually removed and the backup path, or `null` if nothing matched. */
+export function removeDomains(
+  name: string,
+  domains: string[],
+  hostsPath: string = getHostsFilePath(),
+  backupDir: string = getBackupDir(),
+): { removed: string[]; backupPath: string | null } {
+  const content = readHostsFile(hostsPath)
+  if (!content) return { removed: [], backupPath: null }
+  const suffix = marker(name)
+  const toRemove = new Set(domains)
+  const removed: string[] = []
+  const lines = splitLines(content).filter((line) => {
+    const trimmed = line.trim()
+    if (!trimmed.endsWith(suffix)) return true
+    const domain = trimmed.split(/\s+/)[1]
+    if (domain && toRemove.has(domain)) {
+      removed.push(domain)
+      return false
+    }
+    return true
+  })
+  if (removed.length === 0) return { removed: [], backupPath: null }
+  return { removed, backupPath: writeFileSafe(hostsPath, lines.join('\n') + '\n', backupDir).backupPath }
+}
+
 /** Preview the lines that would be added, without touching the file (used by --dry-run). */
 export function previewEntries(name: string, domains: string[]): string[] {
   return domains.map((domain) => buildHostsLine(name, domain))

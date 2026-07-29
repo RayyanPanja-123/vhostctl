@@ -61,7 +61,9 @@ Examples:
 
       const driver = getDriver(stack.kind)
       const configFile = driver.configFilePath(stack, vhost.name)
-      ensureWritable([configFile, getHostsFilePath()], ['remove', name, '--yes'])
+      const relaunchArgs = ['remove', name, '--yes']
+      if (options.skipValidate) relaunchArgs.push('--skip-validate')
+      ensureWritable([configFile, getHostsFilePath()], relaunchArgs)
 
       const changes: FileChange[] = []
       const configBackup = driver.remove(stack, vhost)

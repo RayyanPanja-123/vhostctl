@@ -74,9 +74,9 @@ vhostctl reload
 | `vhostctl view <name>` | Show full details for one site (domain, folder, config file, hosts entries) |
 | `vhostctl remove <name>` | Delete a site completely — config, hosts entry, and all |
 | `vhostctl enable <name>` / `vhostctl disable <name>` | Turn a site on/off without deleting it |
-| `vhostctl subdomain add <name> <sub>` | Point a subdomain (e.g. `api.myapp.local`) at an existing site |
-| `vhostctl subdomain remove <name> <sub>` | Unlink a subdomain |
-| `vhostctl subdomain list <name>` | List subdomains linked to a site |
+| `vhostctl subdomain add <name> <sub>` | Point one or more comma-separated subdomains (e.g. `api,admin`) at an existing site, then reload automatically |
+| `vhostctl subdomain remove <name> <sub>` | Unlink one or more subdomains, then reload automatically |
+| `vhostctl subdomain list [name]` | List subdomains for one site, or every site if no name is given |
 | `vhostctl detect` | Scan your machine for installed web server stacks |
 | `vhostctl reload` | Reload/restart your web server to apply changes |
 | `vhostctl examples` | Print more real-world usage recipes |

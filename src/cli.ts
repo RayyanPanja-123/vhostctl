@@ -11,10 +11,20 @@ import { registerReloadCommand } from './commands/reload.js'
 import { registerRemoveCommand } from './commands/remove.js'
 import { registerSubdomainCommand } from './commands/subdomain.js'
 import { registerViewCommand } from './commands/view.js'
-import { logger } from './utils/logger.js'
+import { logger, setDebugLogFile } from './utils/logger.js'
 
 const require = createRequire(import.meta.url)
 const pkg = require('../package.json') as { version: string }
+
+// Internal flag appended by an elevated relaunch (see core/elevate.ts) so its output can be
+// captured to a file — Windows can't redirect a UAC-elevated child's stdio back to its parent.
+// Stripped here, before commander ever sees argv, so it never shows up as a real CLI option.
+const elevatedLogFlagIndex = process.argv.indexOf('--__vhostctl-elevated-log')
+if (elevatedLogFlagIndex !== -1) {
+  const logPath = process.argv[elevatedLogFlagIndex + 1]
+  if (logPath) setDebugLogFile(logPath)
+  process.argv.splice(elevatedLogFlagIndex, 2)
+}
 
 const program = new Command()
 

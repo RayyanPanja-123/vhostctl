@@ -1,8 +1,14 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { backupFile, deleteFileSafe, restoreFromBackup, writeFileAtomic, writeFileSafe } from '../src/utils/fs-safe.js'
+
+function transientError(code: string): NodeJS.ErrnoException {
+  const err = new Error(code) as NodeJS.ErrnoException
+  err.code = code
+  return err
+}
 
 describe('fs-safe', () => {
   let tmpDir: string
@@ -32,6 +38,43 @@ describe('fs-safe', () => {
       expect(fs.readFileSync(filePath, 'utf8')).toBe('second')
       const leftovers = fs.readdirSync(tmpDir).filter((f) => f.startsWith('.vhostctl-tmp-'))
       expect(leftovers).toEqual([])
+    })
+
+    it('retries past a transient EBUSY/EPERM/EACCES on rename (e.g. AV scanning the temp file) and still succeeds', () => {
+      const realRename = fs.renameSync
+      let calls = 0
+      vi.spyOn(fs, 'renameSync').mockImplementation((...args) => {
+        calls += 1
+        if (calls < 3) throw transientError('EBUSY')
+        return realRename(...(args as Parameters<typeof fs.renameSync>))
+      })
+
+      writeFileAtomic(filePath, 'survived the lock')
+
+      expect(fs.readFileSync(filePath, 'utf8')).toBe('survived the lock')
+      expect(calls).toBe(3)
+      vi.restoreAllMocks()
+    })
+
+    it('gives up and cleans up the temp file after repeated transient failures', () => {
+      vi.spyOn(fs, 'renameSync').mockImplementation(() => {
+        throw transientError('EBUSY')
+      })
+
+      expect(() => writeFileAtomic(filePath, 'never lands')).toThrow()
+      expect(fs.existsSync(filePath)).toBe(false)
+      const leftovers = fs.readdirSync(tmpDir).filter((f) => f.startsWith('.vhostctl-tmp-'))
+      expect(leftovers).toEqual([])
+      vi.restoreAllMocks()
+    })
+
+    it('does not retry non-transient errors', () => {
+      vi.spyOn(fs, 'renameSync').mockImplementation(() => {
+        throw transientError('ENOSPC')
+      })
+
+      expect(() => writeFileAtomic(filePath, 'no room')).toThrow('ENOSPC')
+      vi.restoreAllMocks()
     })
   })
 
